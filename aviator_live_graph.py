@@ -1,0 +1,131 @@
+import random
+import hashlib
+import time
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+
+# ==========================================
+# CONFIG
+# ==========================================
+HOUSE_EDGE = 0.03
+RTP = 1 - HOUSE_EDGE
+MAX_POINTS = 100
+
+# ==========================================
+# DATA STORAGE
+# ==========================================
+rounds = []
+multipliers = []
+
+# ==========================================
+# HASH FUNCTIONS
+# ==========================================
+def generate_hash(seed):
+    return hashlib.sha256(seed.encode()).hexdigest()
+
+# ==========================================
+# HASH -> FLOAT
+# ==========================================
+def hash_to_float(hash_string):
+    value = int(hash_string[:13], 16)
+    return value / float(0x1FFFFFFFFFFFFF)
+
+# ==========================================
+# MULTIPLIER GENERATOR
+# ==========================================
+def generate_multiplier():
+
+    seed = str(time.time()) + str(random.random())
+
+    h = generate_hash(seed)
+
+    r = hash_to_float(h)
+
+    if r >= 0.999999:
+        r = 0.999998
+
+    multiplier = RTP / (1 - r)
+
+    if multiplier < 1:
+        multiplier = 1.00
+
+    return round(multiplier, 2)
+
+# ==========================================
+# SIGNAL CLASSIFIER
+# ==========================================
+def classify(multiplier):
+
+    if multiplier < 2:
+        return "LOW"
+
+    elif multiplier < 10:
+        return "MEDIUM"
+
+    else:
+        return "HIGH"
+
+# ==========================================
+# LIVE GRAPH UPDATE
+# ==========================================
+def update(frame):
+
+    crash = generate_multiplier()
+
+    rounds.append(len(rounds) + 1)
+    multipliers.append(crash)
+
+    # Keep graph lightweight
+    if len(rounds) > MAX_POINTS:
+        rounds.pop(0)
+        multipliers.pop(0)
+
+    plt.cla()
+
+    # Main line graph
+    plt.plot(rounds, multipliers)
+
+    # Moving average
+    if len(multipliers) >= 5:
+        moving_avg = []
+
+        for i in range(len(multipliers)):
+
+            start = max(0, i - 4)
+            avg = sum(multipliers[start:i+1]) / len(multipliers[start:i+1])
+            moving_avg.append(avg)
+
+        plt.plot(rounds, moving_avg)
+
+    # Signal zones
+    plt.axhline(2, linestyle='--')
+    plt.axhline(10, linestyle='--')
+
+    latest = multipliers[-1]
+    signal = classify(latest)
+
+    plt.title(
+        f"AVIATOR LIVE VISUALIZER | Latest: {latest}x | Signal: {signal}"
+    )
+
+    plt.xlabel("Rounds")
+    plt.ylabel("Multiplier")
+
+    plt.ylim(0, max(multipliers) + 5)
+
+    plt.grid(True)
+
+# ==========================================
+# START VISUALIZER
+# ==========================================
+fig = plt.figure(figsize=(12, 6))
+
+ani = FuncAnimation(
+    fig,
+    update,
+    interval=1000,
+    cache_frame_data=False
+)
+
+plt.tight_layout()
+plt.show()
